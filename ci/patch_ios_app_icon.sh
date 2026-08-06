@@ -58,13 +58,18 @@ set_plist_string ':CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName' 'App
 # Unity Build Automation exported this IPA with CFBundleVersion 0. App Store
 # Connect requires every uploaded build number to be strictly higher than the
 # previous one, so use Codemagic's monotonically increasing build number.
-BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
-if ! [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-  echo "Invalid Codemagic build number: $BUILD_NUMBER" >&2
+#
+# The variable is BUILD_NUMBER; CM_BUILD_NUMBER does not exist. A silent
+# fallback here is dangerous: it pinned every upload to "1" until App Store
+# Connect started rejecting the duplicate, so fail loudly instead.
+echo "Build number candidates: BUILD_NUMBER='${BUILD_NUMBER:-}' PROJECT_BUILD_NUMBER='${PROJECT_BUILD_NUMBER:-}' CM_BUILD_NUMBER='${CM_BUILD_NUMBER:-}'"
+APP_BUILD_NUMBER="${BUILD_NUMBER:-${PROJECT_BUILD_NUMBER:-${CM_BUILD_NUMBER:-}}}"
+if ! [[ "$APP_BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+  echo "No usable CI build number found (got '$APP_BUILD_NUMBER')." >&2
   exit 1
 fi
-set_plist_string ':CFBundleVersion' "$BUILD_NUMBER"
-echo "Using App Store bundle version $BUILD_NUMBER."
+set_plist_string ':CFBundleVersion' "$APP_BUILD_NUMBER"
+echo "Using App Store bundle version $APP_BUILD_NUMBER."
 
 PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -type f -name '*.mobileprovision' -print -quit)"
 test -n "$PROFILE_PATH"
