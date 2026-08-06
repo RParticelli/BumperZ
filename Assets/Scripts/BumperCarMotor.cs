@@ -31,6 +31,8 @@ public sealed class BumperCarMotor : MonoBehaviour
     TrailRenderer[] oilTrails;
     LineRenderer[] energyTrails;
     float nextOilMarkAt;
+    BumperCarMotor lastAttacker;
+    float lastAttackedAt;
 
     const float Acceleration = 16f;
     const float ReverseAcceleration = 15f;
@@ -46,6 +48,8 @@ public sealed class BumperCarMotor : MonoBehaviour
     public bool IsShieldActive => Time.time < shieldUntil;
     public bool IsGiant => Time.time < giantUntil;
     public bool IsHurricaneActive => Time.time < hurricaneUntil;
+    public BumperCarMotor RecentAttacker =>
+        lastAttacker && Time.time - lastAttackedAt <= 7f ? lastAttacker : null;
 
     public void Initialize(bool player, int index, Color color)
     {
@@ -286,6 +290,7 @@ public sealed class BumperCarMotor : MonoBehaviour
         {
             BumperCarMotor attacker = thisAttack > otherAttack ? this : other;
             BumperCarMotor victim = attacker == this ? other : this;
+            victim.RegisterAttack(attacker);
             Vector3 pushDirection = attacker == this ? separation : -separation;
             Vector3 victimToAttacker = -pushDirection;
 
@@ -324,6 +329,13 @@ public sealed class BumperCarMotor : MonoBehaviour
         SetOilTrails(false);
         SetEnergyTrails(false);
         if (body) body.constraints = RigidbodyConstraints.None;
+    }
+
+    public void RegisterAttack(BumperCarMotor attacker)
+    {
+        if (!attacker || attacker == this) return;
+        lastAttacker = attacker;
+        lastAttackedAt = Time.time;
     }
 
     public string GiveRandomPowerup()
@@ -377,8 +389,9 @@ public sealed class BumperCarMotor : MonoBehaviour
         BumperHurricaneProjectile.Create(position, transform.forward, this);
     }
 
-    public void ApplyHurricane(Vector3 center, Vector3 shotDirection)
+    public void ApplyHurricane(Vector3 center, Vector3 shotDirection, BumperCarMotor attacker = null)
     {
+        RegisterAttack(attacker);
         hurricaneCenter = new Vector3(center.x, transform.position.y, center.z);
         hurricaneEjectDirection = Vector3.ProjectOnPlane(shotDirection, Vector3.up).normalized;
         hurricaneSign = Random.value < 0.5f ? -1f : 1f;
@@ -395,8 +408,9 @@ public sealed class BumperCarMotor : MonoBehaviour
         if (shield) shield.Flash();
     }
 
-    public void ApplySpinShot(Vector3 shotDirection)
+    public void ApplySpinShot(Vector3 shotDirection, BumperCarMotor attacker = null)
     {
+        RegisterAttack(attacker);
         shotSpinSign = Vector3.Dot(transform.right, shotDirection) >= 0f ? -1f : 1f;
         if (Mathf.Abs(Vector3.Dot(transform.right, shotDirection)) < 0.15f)
             shotSpinSign = Random.value < 0.5f ? -1f : 1f;

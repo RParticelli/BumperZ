@@ -32,7 +32,7 @@ public sealed class BumperHurricaneProjectile : MonoBehaviour
             if (car == owner) continue;
             if (car && car.IsAlive)
             {
-                car.ApplyHurricane(car.transform.position, direction);
+                car.ApplyHurricane(car.transform.position, direction, owner);
                 Destroy(gameObject);
                 return;
             }

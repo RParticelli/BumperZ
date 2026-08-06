@@ -53,7 +53,7 @@ public sealed class BumperSpinProjectile : MonoBehaviour
                 if (car.IsShieldActive)
                     car.BlockSpinShot();
                 else
-                    car.ApplySpinShot(direction);
+                    car.ApplySpinShot(direction, owner);
                 Destroy(gameObject);
                 return;
             }

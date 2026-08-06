@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public sealed class BumperGame : MonoBehaviour
 {
@@ -20,6 +21,19 @@ public sealed class BumperGame : MonoBehaviour
     GUIStyle hudValueStyle;
     Texture2D hudLeftPanel;
     Texture2D hudRightPanel;
+    Texture2D endPixel;
+    GUIStyle endTitleStyle;
+    GUIStyle endSubtitleStyle;
+    GUIStyle endStatStyle;
+    GUIStyle endButtonStyle;
+    int playerKills;
+    int finalPlacement;
+    int finalDuration;
+    int earnedCoins;
+    int earnedTrophies;
+    bool endActionQueued;
+
+    public bool IsMatchFinished => !string.IsNullOrEmpty(result);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void StartGame()
@@ -350,6 +364,7 @@ public sealed class BumperGame : MonoBehaviour
 
     void StartMatch()
     {
+        Time.timeScale = 1f;
         StopAllCoroutines();
         foreach (var pickup in FindObjectsByType<BumperPickup>(FindObjectsSortMode.None))
             Destroy(pickup.gameObject);
@@ -365,6 +380,12 @@ public sealed class BumperGame : MonoBehaviour
         result = "";
         itemMessage = "";
         matchRecorded = false;
+        playerKills = 0;
+        finalPlacement = 0;
+        finalDuration = 0;
+        earnedCoins = 0;
+        earnedTrophies = 0;
+        endActionQueued = false;
         matchStartedAt = Time.time;
 
         Color[] colors =
@@ -411,6 +432,9 @@ public sealed class BumperGame : MonoBehaviour
     public void Eliminate(BumperCarMotor car)
     {
         if (!car || !car.IsAlive) return;
+        BumperCarMotor attacker = car.RecentAttacker;
+        if (car != player && attacker == player)
+            playerKills++;
         car.KnockOut();
         int alive = 0;
         BumperCarMotor survivor = null;
@@ -418,17 +442,24 @@ public sealed class BumperGame : MonoBehaviour
             if (candidate && candidate.IsAlive) { alive++; survivor = candidate; }
 
         if (car == player)
-            result = "VOCE FOI ELIMINADO";
+            FinishMatch(false, alive + 1);
         else if (alive == 1 && survivor == player)
-            result = "VITORIA!";
+            FinishMatch(true, 1);
         else if (alive <= 1)
-            result = "FIM DE JOGO";
+            FinishMatch(false, Mathf.Max(2, alive + 1));
+    }
 
-        if (!matchRecorded && (car == player || alive <= 1))
-        {
-            matchRecorded = true;
-            BumperProfile.RecordMatch(alive == 1 && survivor == player);
-        }
+    void FinishMatch(bool won, int placement)
+    {
+        if (matchRecorded) return;
+        matchRecorded = true;
+        result = won ? "VITORIA" : "DERROTA";
+        finalPlacement = placement;
+        finalDuration = Mathf.Max(0, Mathf.FloorToInt(Time.time - matchStartedAt));
+        earnedCoins = won ? 350 : 90;
+        earnedTrophies = won ? 30 : -8;
+        BumperProfile.RecordMatch(won);
+        Time.timeScale = 0f;
     }
 
     void SpawnPickup()
@@ -519,9 +550,117 @@ public sealed class BumperGame : MonoBehaviour
         if (player && player.HasPower)
             GUI.Label(new Rect(Screen.width - 305, Screen.height - 210, 270, 34), player.HeldPowerName + " DISPONIVEL", infoStyle);
         if (!string.IsNullOrEmpty(result))
-            GUI.Label(new Rect(0, Screen.height * 0.38f, Screen.width, 70), result, titleStyle);
+        {
+            DrawEndScreen();
+            return;
+        }
 
         // Rival labels use lightweight world-space billboards.
+    }
+
+    void DrawEndScreen()
+    {
+        EnsureEndScreenStyles();
+        float scale = Mathf.Min(Screen.width / 960f, Screen.height / 540f);
+        float originX = (Screen.width - 960f * scale) * 0.5f;
+        float originY = (Screen.height - 540f * scale) * 0.5f;
+        Rect R(float x, float y, float w, float h) =>
+            new(originX + x * scale, originY + y * scale, w * scale, h * scale);
+
+        GUI.color = new Color(0f, 0.015f, 0.035f, 0.84f);
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), endPixel);
+        GUI.color = Color.white;
+
+        Color accent = result == "VITORIA"
+            ? new Color(1f, 0.67f, 0.08f)
+            : new Color(1f, 0.18f, 0.10f);
+        DrawEndBox(R(205, 58, 550, 424), new Color(0.018f, 0.035f, 0.06f, 0.98f), accent, 4f * scale);
+        DrawEndBox(R(225, 78, 510, 74), new Color(0.025f, 0.07f, 0.12f, 0.98f), accent, 2f * scale);
+
+        endTitleStyle.fontSize = Mathf.RoundToInt(42f * scale);
+        endTitleStyle.normal.textColor = accent;
+        GUI.Label(R(235, 82, 490, 52), result, endTitleStyle);
+
+        endSubtitleStyle.fontSize = Mathf.RoundToInt(15f * scale);
+        GUI.Label(R(235, 130, 490, 22), result == "VITORIA" ? "ULTIMO PILOTO NA ARENA" : $"VOCE TERMINOU EM #{finalPlacement}", endSubtitleStyle);
+
+        DrawEndStat(R, 230, "COLOCACAO", $"#{finalPlacement}", accent);
+        DrawEndStat(R, 365, "ELIMINACOES", playerKills.ToString(), new Color(0.05f, 0.78f, 1f));
+        DrawEndStat(R, 500, "TEMPO", $"{finalDuration / 60:00}:{finalDuration % 60:00}", Color.white);
+        DrawEndStat(R, 635, "MOEDAS", $"+{earnedCoins}", new Color(1f, 0.70f, 0.08f));
+
+        endSubtitleStyle.fontSize = Mathf.RoundToInt(13f * scale);
+        endSubtitleStyle.normal.textColor = earnedTrophies >= 0 ? new Color(0.25f, 1f, 0.55f) : new Color(1f, 0.35f, 0.25f);
+        GUI.Label(R(255, 300, 450, 30), $"TROFEUS  {(earnedTrophies >= 0 ? "+" : "")}{earnedTrophies}", endSubtitleStyle);
+
+        endButtonStyle.fontSize = Mathf.RoundToInt(17f * scale);
+        endButtonStyle.normal.textColor = Color.white;
+        DrawEndBox(R(245, 352, 220, 62), new Color(0.02f, 0.30f, 0.52f, 0.98f), new Color(0.05f, 0.80f, 1f), 2f * scale);
+        if (!endActionQueued && GUI.Button(R(245, 352, 220, 62), "JOGAR NOVAMENTE", endButtonStyle))
+        {
+            endActionQueued = true;
+            StartCoroutine(RestartMatch());
+        }
+
+        DrawEndBox(R(495, 352, 220, 62), new Color(0.12f, 0.13f, 0.16f, 0.98f), new Color(0.65f, 0.68f, 0.74f), 2f * scale);
+        if (!endActionQueued && GUI.Button(R(495, 352, 220, 62), "VOLTAR AO MENU", endButtonStyle))
+        {
+            endActionQueued = true;
+            ReturnToMenu();
+        }
+
+        endSubtitleStyle.normal.textColor = new Color(0.64f, 0.69f, 0.76f);
+        endSubtitleStyle.fontSize = Mathf.RoundToInt(11f * scale);
+        GUI.Label(R(260, 435, 440, 22), "RESULTADO SALVO NO SEU PERFIL", endSubtitleStyle);
+    }
+
+    void DrawEndStat(System.Func<float, float, float, float, Rect> R, float x, string caption, string value, Color color)
+    {
+        DrawEndBox(R(x, 178, 125, 104), new Color(0.025f, 0.055f, 0.09f, 0.96f), new Color(color.r, color.g, color.b, 0.70f), 1.5f);
+        endSubtitleStyle.fontSize = Mathf.RoundToInt(11f * Mathf.Min(Screen.width / 960f, Screen.height / 540f));
+        endSubtitleStyle.normal.textColor = new Color(0.68f, 0.73f, 0.80f);
+        GUI.Label(R(x + 5, 186, 115, 25), caption, endSubtitleStyle);
+        endStatStyle.fontSize = Mathf.RoundToInt(29f * Mathf.Min(Screen.width / 960f, Screen.height / 540f));
+        endStatStyle.normal.textColor = color;
+        GUI.Label(R(x + 5, 211, 115, 55), value, endStatStyle);
+    }
+
+    void EnsureEndScreenStyles()
+    {
+        if (!endPixel)
+        {
+            endPixel = new Texture2D(1, 1, TextureFormat.RGBA32, false) { name = "EndScreenPixel" };
+            endPixel.SetPixel(0, 0, Color.white);
+            endPixel.Apply(false, true);
+        }
+        endTitleStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+        endSubtitleStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+        endStatStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+        endButtonStyle ??= new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+    }
+
+    void DrawEndBox(Rect rect, Color fill, Color edge, float border)
+    {
+        GUI.color = edge;
+        GUI.DrawTexture(rect, endPixel);
+        GUI.color = fill;
+        GUI.DrawTexture(new Rect(rect.x + border, rect.y + border, rect.width - border * 2f, rect.height - border * 2f), endPixel);
+        GUI.color = Color.white;
+    }
+
+    IEnumerator RestartMatch()
+    {
+        Time.timeScale = 1f;
+        yield return null;
+        StartMatch();
+    }
+
+    void ReturnToMenu()
+    {
+        Time.timeScale = 1f;
+        PlayerPrefs.SetInt("BumperZ.InMatch", 0);
+        PlayerPrefs.Save();
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     void EnsureMatchHud()

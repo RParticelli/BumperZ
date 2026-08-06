@@ -30,6 +30,12 @@ public sealed class BumperMobileInput : MonoBehaviour
 
     void Update()
     {
+        if (BumperGame.Instance && BumperGame.Instance.IsMatchFinished)
+        {
+            if (IsDriving) End();
+            return;
+        }
+
         if (Input.touchCount > 0)
         {
             HandleTouches();
@@ -99,6 +105,9 @@ public sealed class BumperMobileInput : MonoBehaviour
 
     void OnGUI()
     {
+        if (BumperGame.Instance && BumperGame.Instance.IsMatchFinished)
+            return;
+
         if (IsDriving)
         {
             DrawCentered(baseTexture, origin, 176f);
