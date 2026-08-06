@@ -1,0 +1,48 @@
+# Unity generated directories
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# IDE and operating-system files
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.DS_Store
+Thumbs.db
+
+# Builds, signing files and secrets
+*.apk
+*.aab
+*.ipa
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+*.p8
+*.cer
+*.provisionprofile
+.env
+.env.*
+codemagic-secrets.*
+
+# Crash and diagnostic output
+sysinfo.txt
+crashlytics-build.properties
