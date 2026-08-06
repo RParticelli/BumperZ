@@ -1,17 +1,21 @@
 workflows:
   bumperz-upload-testflight:
-    name: BumperZ - Upload existing IPA to TestFlight
+    name: BumperZ - Fix icon and upload IPA to TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 30
     integrations:
       app_store_connect: BumperZ
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.bumperz.game
     scripts:
-      - name: Validate signed IPA
+      - name: Patch App Store icon and re-sign IPA
         script: |
           test -f "$CM_BUILD_DIR/ci-upload/BumperZ.ipa"
-          echo "Signed BumperZ IPA found."
+          bash "$CM_BUILD_DIR/ci/patch_ios_app_icon.sh"
     artifacts:
-      - ci-upload/BumperZ.ipa
+      - build/BumperZ-fixed.ipa
     publishing:
       app_store_connect:
         auth: integration
