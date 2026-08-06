@@ -63,6 +63,7 @@ public sealed class BumperGame : MonoBehaviour
             var arena = Instantiate(arenaSource);
             arena.name = "Arena_Root";
             arena.transform.position = Vector3.zero;
+            Bounds? playableFloorBounds = null;
             foreach (var renderer in arena.GetComponentsInChildren<Renderer>())
             {
                 Material[] sourceMaterials = renderer.sharedMaterials;
@@ -75,18 +76,17 @@ public sealed class BumperGame : MonoBehaviour
                 }
                 renderer.materials = runtimeMaterials;
 
-                // Only the original platform is physical. Every futuristic
-                // detail is visual and cannot snag or launch the cars.
-                if (renderer.name.ToLowerInvariant().Contains("plataforma"))
+                string rendererKey = renderer.name.ToLowerInvariant();
+                if (rendererKey.Contains("inferno_floor") ||
+                    rendererKey.Contains("plataforma") ||
+                    rendererKey.Contains("floorplate"))
                 {
-                    var mesh = renderer.GetComponent<MeshFilter>();
-                    if (mesh)
-                    {
-                        var collider = renderer.gameObject.AddComponent<MeshCollider>();
-                        collider.sharedMesh = mesh.sharedMesh;
-                    }
+                    playableFloorBounds = playableFloorBounds.HasValue
+                        ? Encapsulate(playableFloorBounds.Value, renderer.bounds)
+                        : renderer.bounds;
                 }
             }
+            BuildArenaFloorCollider(playableFloorBounds);
             BuildInfernoEffects(arena.transform);
         }
         else
@@ -109,6 +109,48 @@ public sealed class BumperGame : MonoBehaviour
         camera.backgroundColor = RenderSettings.fogColor;
         cameraObject.AddComponent<AudioListener>();
         cameraObject.AddComponent<BumperCamera>();
+    }
+
+    static Bounds Encapsulate(Bounds current, Bounds other)
+    {
+        current.Encapsulate(other);
+        return current;
+    }
+
+    static void BuildArenaFloorCollider(Bounds? detectedBounds)
+    {
+        Bounds bounds = detectedBounds ?? new Bounds(Vector3.zero, new Vector3(14.5f, 0.2f, 14.5f));
+        float radius = Mathf.Max(6.8f, Mathf.Min(bounds.extents.x, bounds.extents.z));
+        float height = detectedBounds.HasValue ? bounds.max.y : 0f;
+        Vector3 center = new Vector3(bounds.center.x, height, bounds.center.z);
+
+        const int segments = 64;
+        var vertices = new Vector3[segments + 1];
+        var triangles = new int[segments * 3];
+        vertices[0] = Vector3.zero;
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = i * Mathf.PI * 2f / segments;
+            vertices[i + 1] = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+            int next = (i + 1) % segments;
+            int triangle = i * 3;
+            // Reverse the ring order so the collision surface faces upward.
+            triangles[triangle] = 0;
+            triangles[triangle + 1] = next + 1;
+            triangles[triangle + 2] = i + 1;
+        }
+
+        var mesh = new Mesh { name = "Arena_Floor_Collision_Mesh" };
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        var collisionObject = new GameObject("Arena_Floor_Collision");
+        collisionObject.transform.position = center;
+        var collider = collisionObject.AddComponent<MeshCollider>();
+        collider.sharedMesh = mesh;
+        Debug.Log($"[BumperZ] Created arena floor collider with radius {radius:F2} at height {height:F2}.");
     }
 
     static void BuildInfernoEffects(Transform arenaRoot)
