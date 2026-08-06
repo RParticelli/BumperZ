@@ -55,6 +55,17 @@ set_plist_string ':CFBundleIconName' 'AppIcon'
 set_plist_string ':CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' 'AppIcon'
 set_plist_string ':CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName' 'AppIcon'
 
+# Unity Build Automation exported this IPA with CFBundleVersion 0. App Store
+# Connect requires every uploaded build number to be strictly higher than the
+# previous one, so use Codemagic's monotonically increasing build number.
+BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
+if ! [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Invalid Codemagic build number: $BUILD_NUMBER" >&2
+  exit 1
+fi
+set_plist_string ':CFBundleVersion' "$BUILD_NUMBER"
+echo "Using App Store bundle version $BUILD_NUMBER."
+
 PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -type f -name '*.mobileprovision' -print -quit)"
 test -n "$PROFILE_PATH"
 cp "$PROFILE_PATH" "$APP_PATH/embedded.mobileprovision"
