@@ -32,6 +32,7 @@ Thumbs.db
 *.apk
 *.aab
 *.ipa
+!ci-upload/BumperZ.ipa
 *.p12
 *.mobileprovision
 *.keystore

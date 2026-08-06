@@ -1,4 +1,22 @@
 workflows:
+  bumperz-upload-testflight:
+    name: BumperZ - Upload existing IPA to TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: codemagic
+    scripts:
+      - name: Validate signed IPA
+        script: |
+          test -f "$CM_BUILD_DIR/ci-upload/BumperZ.ipa"
+          echo "Signed BumperZ IPA found."
+    artifacts:
+      - ci-upload/BumperZ.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
   bumperz-ios-testflight:
     name: BumperZ iOS - TestFlight
     instance_type: mac_mini_m2
